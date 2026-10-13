@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login - Smart Ludo</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="wrap narrow">
+  <h1>🎲 SMART LUDO</h1>
+  <div class="card">
+    <h2>Login</h2>
+    <input id="user" placeholder="Username" autocomplete="username">
+    <input id="pass" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn" id="go" style="width:100%">Login</button>
+    <div id="msg" class="msg"></div>
+    <p>New here? <a href="register.html">Create an account</a></p>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+if (me() && getUsers()[me()]) location.replace("home.html");
+if (location.search.includes("registered")) say("msg", "Account created! Please login.", true);
+
+async function login() {
+  const name = $("user").value.trim().toLowerCase(), u = getUsers()[name];
+  if (!name || !$("pass").value) return say("msg", "Please fill in all fields.", false);
+  if (!u || u.hash !== await hash($("pass").value)) return say("msg", "Wrong username or password.", false);
+  localStorage.setItem("ludoSession", name);
+  location.href = "home.html";
+}
+$("go").onclick = login;
+document.addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+</script>
+</body></html>

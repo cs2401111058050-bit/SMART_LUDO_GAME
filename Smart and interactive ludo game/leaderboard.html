@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaderboard - Smart Ludo</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<nav id="nav"></nav>
+<div class="wrap" style="max-width:560px">
+  <h1>🏆 Leaderboard</h1>
+  <div class="card"><table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>Games</th></tr></thead><tbody id="rows"></tbody></table></div>
+</div>
+<script src="auth.js"></script>
+<script>
+requireLogin(); navbar();
+const list = Object.entries(getUsers()).sort((a, b) => (b[1].wins || 0) - (a[1].wins || 0));
+$("rows").innerHTML = list.map(([key, u], i) =>
+  `<tr style="${key === me() ? "color:gold;font-weight:bold" : ""}"><td>${i + 1}</td><td>${esc(u.display)}</td><td>${u.wins || 0}</td><td>${u.played || 0}</td></tr>`).join("");
+</script>
+</body></html>

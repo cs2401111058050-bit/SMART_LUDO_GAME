@@ -1,0 +1,28 @@
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; min-height: 100vh; color: #fff; padding: 0 12px 24px;
+       background: radial-gradient(circle at 50% 0%, #4c1d95, #0f172a 70%); }
+a { color: #c4b5fd; }
+nav { display: flex; align-items: center; gap: 18px; padding: 14px 4px; max-width: 900px; margin: 0 auto; }
+nav a { color: #e9d5ff; text-decoration: none; font-weight: 600; }
+nav .sp { flex: 1; }
+.wrap { max-width: 900px; margin: 0 auto; text-align: center; }
+.narrow { max-width: 380px; margin-top: 6vh; }
+h1 { margin: 6px 0 14px; font-size: 32px; letter-spacing: 2px; text-shadow: 0 0 14px #a78bfa; }
+.card { background: #ffffff14; border: 1px solid #ffffff33; border-radius: 18px; padding: 24px; box-shadow: 0 10px 40px #0008; margin-bottom: 16px; }
+.card h2 { margin-top: 0; }
+input, select { width: 100%; padding: 12px; margin: 7px 0; border-radius: 10px; border: 2px solid transparent; background: #0f172a; color: #fff; font-size: 15px; }
+input:focus, select:focus { outline: none; border-color: #a78bfa; }
+.btn { padding: 12px 18px; margin-top: 8px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer;
+       background: linear-gradient(135deg, #f43f5e, #fb923c); box-shadow: 0 4px 12px #0008; }
+.btn:disabled { background: #475569; cursor: not-allowed; opacity: .7; }
+.ghost { padding: 9px 14px; margin: 6px 4px; border: none; border-radius: 10px; background: #1e293b; color: #fff; cursor: pointer; font-size: 14px; }
+.msg { min-height: 22px; margin-top: 10px; font-size: 14px; }
+.err { color: #fca5a5; } .ok { color: #86efac; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.big { font-size: 38px; font-weight: bold; color: gold; }
+.code { font-size: 44px; font-weight: bold; letter-spacing: 8px; color: gold; margin: 6px 0; }
+.slot { display: flex; align-items: center; gap: 12px; background: #0f172a; border-radius: 12px; padding: 10px 14px; margin: 8px 0; text-align: left; }
+.slot span:nth-child(2) { flex: 1; } .slot.empty { opacity: .55; }
+.dot { width: 20px; height: 20px; border-radius: 50%; display: inline-block; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px; border-bottom: 1px solid #ffffff22; text-align: left; }

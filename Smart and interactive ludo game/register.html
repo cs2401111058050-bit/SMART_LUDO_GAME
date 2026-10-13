@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register - Smart Ludo</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="wrap narrow">
+  <h1>🎲 SMART LUDO</h1>
+  <div class="card">
+    <h2>Create Account</h2>
+    <input id="user" placeholder="Username (min 3 characters)" autocomplete="username">
+    <input id="pass" type="password" placeholder="Password (min 4 characters)" autocomplete="new-password">
+    <input id="pass2" type="password" placeholder="Confirm password" autocomplete="new-password">
+    <button class="btn" id="go" style="width:100%">Register</button>
+    <div id="msg" class="msg"></div>
+    <p>Already have an account? <a href="login.html">Login</a></p>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+async function register() {
+  const name = $("user").value.trim(), pass = $("pass").value, users = getUsers();
+  if (name.length < 3) return say("msg", "Username must be at least 3 characters.", false);
+  if (pass.length < 4) return say("msg", "Password must be at least 4 characters.", false);
+  if (pass !== $("pass2").value) return say("msg", "Passwords do not match.", false);
+  if (users[name.toLowerCase()]) return say("msg", "That username is already taken.", false);
+  users[name.toLowerCase()] = { display: name, hash: await hash(pass), wins: 0, played: 0 };
+  saveUsers(users);
+  say("msg", "Account created! Taking you to login...", true);
+  setTimeout(() => location.href = "login.html?registered=1", 900);
+}
+$("go").onclick = register;
+document.addEventListener("keydown", e => { if (e.key === "Enter") register(); });
+</script>
+</body></html>

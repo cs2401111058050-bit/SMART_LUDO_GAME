@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playing - Smart Ludo</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 12px; color: #fff; text-align: center;
+         background: radial-gradient(circle at 50% 0%, #4c1d95, #0f172a 70%); min-height: 100vh; }
+  h1 { margin: 4px 0 8px; font-size: 30px; letter-spacing: 2px; text-shadow: 0 0 14px #a78bfa; }
+  .bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 8px; }
+  select, button { font-size: 15px; padding: 8px 14px; border-radius: 10px; border: none; cursor: pointer; }
+  select { background: #1e293b; color: #fff; }
+  .btn { background: linear-gradient(135deg, #f43f5e, #fb923c); color: #fff; font-weight: bold; box-shadow: 0 4px 12px #0008; }
+  .btn:disabled { background: #475569; box-shadow: none; cursor: not-allowed; opacity: .7; }
+  .ghost { background: #1e293b; color: #fff; }
+  #userbar { margin-bottom: 8px; font-size: 15px; } #userbar button { padding: 4px 12px; margin-left: 8px; }
+  #players { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 6px 0; }
+  .chip { padding: 5px 10px; border-radius: 20px; border: 2px solid; background: #0f172a99; font-size: 13px; opacity: .6; }
+  .chip.active { opacity: 1; background: #ffffff22; box-shadow: 0 0 12px currentColor; transform: scale(1.08); }
+  #status { font-size: 18px; min-height: 28px; margin: 6px; font-weight: 600; }
+  .row { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 6px 0; }
+  #die { width: 64px; height: 64px; background: #fff; border-radius: 14px; display: grid; grid-template: repeat(3,1fr)/repeat(3,1fr);
+         padding: 8px; box-shadow: 0 6px 16px #000a, inset 0 -4px 0 #cbd5e1; }
+  #die.rolling { animation: shake .25s infinite; }
+  .pip { border-radius: 50%; margin: 2px; } .pip.on { background: #111827; }
+  @keyframes shake { 0%{transform:rotate(-12deg) translateY(0)} 50%{transform:rotate(12deg) translateY(-8px)} 100%{transform:rotate(-12deg) translateY(0)} }
+  svg { width: 100%; max-width: 640px; border-radius: 50%; box-shadow: 0 0 40px #7c3aed88; background: #0b1020; }
+  .movable { cursor: pointer; animation: pulse .6s infinite alternate; }
+  @keyframes pulse { from { stroke-width: 3; } to { stroke-width: 9; } }
+  #win { display: none; position: fixed; inset: 0; background: #000b; z-index: 10; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; }
+  #win h2 { font-size: 44px; margin: 0 0 16px; text-shadow: 0 0 20px gold; }
+  .conf { position: absolute; top: -40px; font-size: 28px; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+</style>
+</head>
+<body>
+  <h1>🎲 SMART LUDO</h1>
+  <nav id="nav"></nav>
+  <div class="bar">
+    <button class="btn" id="newGame">🔄 Restart</button>
+    <button class="ghost" id="mute">🔊</button>
+  </div>
+  <div id="players"></div>
+  <div id="status"></div>
+  <div class="row"><div id="die"></div><button class="btn" id="roll">Roll Dice</button></div>
+  <svg id="board" viewBox="-330 -330 660 660"></svg>
+  <div id="win"><h2 id="winText"></h2><button class="btn" id="again">Play Again</button> <a href="home.html" class="btn" style="text-decoration:none;display:inline-block">Home</a></div>
+
+<script src="auth.js"></script>
+<script>
+const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#facc15", "#a855f7", "#fb923c"];
+let NAMES = [];
+const RING = 60, SEG = 10, R = 250, FINISH = 65;
+let seats, bots, tokens, turn, dice, movable, busy, gameOver, muted = false, audio;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ---------- room check ----------
+requireLogin(); navbar();
+const roomCode = new URLSearchParams(location.search).get("room");
+const room = getRooms()[roomCode];
+if (!room || !room.started) { location.replace("home.html"); throw new Error("no room"); }
+NAMES = room.players.map(p => p.name);
+
+// ---------- sound ----------
+function beep(f, d = 0.08, type = "sine") {
+  if (muted) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = type; o.frequency.value = f; g.gain.value = 0.08;
+    o.connect(g); g.connect(audio.destination);
+    o.start(); g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + d); o.stop(audio.currentTime + d);
+  } catch (e) {}
+}
+
+// ---------- positions ----------
+const angleOf = i => 2 * Math.PI * i / RING - Math.PI / 2;
+const ringXY = i => [R * Math.cos(angleOf(i)), R * Math.sin(angleOf(i))];
+function homeXY(k, s) {
+  const a = angleOf((k * SEG + RING - 1) % RING), r = s < 4 ? R - (s + 1) * 32 : 70;
+  return [r * Math.cos(a), r * Math.sin(a)];
+}
+function baseXY(k, t) {
+  const a = angleOf(k * SEG + 5), r = 0.58 * R;
+  return [r * Math.cos(a) + ((t % 2) * 2 - 1) * 16, r * Math.sin(a) + ((t >> 1) * 2 - 1) * 16];
+}
+function tokenXY(k, t) {
+  const p = tokens[k][t];
+  if (p === 0) return baseXY(k, t);
+  if (p <= 60) return ringXY(ringIndex(k, p));
+  return homeXY(k, p < FINISH ? p - 61 : 4);
+}
+const ringIndex = (k, p) => (k * SEG + p - 1) % RING;
+const cur = () => seats[turn];
+
+// ---------- game flow ----------
+function newGame() {
+  seats = room.players.map((_, i) => i);
+  bots = new Set(); room.players.forEach((p, i) => { if (p.bot) bots.add(i); });
+  tokens = {}; seats.forEach(k => tokens[k] = [0, 0, 0, 0]);
+  turn = 0; dice = null; movable = []; busy = false; gameOver = false;
+  $("win").style.display = "none"; showDie(1);
+  setStatus(NAMES[cur()] + "'s turn. Roll the dice!");
+  render(); afterTurnStart();
+}
+function setStatus(t) { $("status").textContent = t; }
+function showDie(v) {
+  const pat = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]}[v];
+  $("die").innerHTML = Array.from({length: 9}, (_, i) => `<span class="pip ${pat.includes(i) ? "on" : ""}"></span>`).join("");
+}
+function afterTurnStart() { if (!gameOver && bots.has(cur())) setTimeout(rollDice, 900); }
+
+async function rollDice() {
+  if (busy || gameOver || dice !== null) return;
+  busy = true; render();
+  $("die").classList.add("rolling");
+  for (let i = 0; i < 8; i++) { showDie(1 + Math.floor(Math.random() * 6)); beep(300 + i * 40, .05, "square"); await sleep(80); }
+  $("die").classList.remove("rolling");
+  dice = 1 + Math.floor(Math.random() * 6); showDie(dice);
+  const k = cur(); movable = [];
+  tokens[k].forEach((p, t) => { if (p === 0 ? dice === 6 : p + dice <= FINISH) movable.push(t); });
+  if (!movable.length) {
+    setStatus(NAMES[k] + " rolled " + dice + " - no move possible."); dice = null; render();
+    await sleep(1000); busy = false; nextTurn(); return;
+  }
+  if (bots.has(k)) {
+    setStatus("🤖 " + NAMES[k] + " rolled " + dice); render(); await sleep(700); await moveToken(botPick()); return;
+  }
+  setStatus(NAMES[k] + " rolled " + dice + ". Tap a glowing token."); busy = false; render();
+}
+
+function captureAt(k, p) {
+  const hits = [];
+  if (p > 60 || ringIndex(k, p) % SEG === 0) return hits;          // star squares are safe
+  seats.forEach(o => { if (o !== k) tokens[o].forEach((q, i) => {
+    if (q >= 1 && q <= 60 && ringIndex(o, q) === ringIndex(k, p)) hits.push([o, i]);
+  }); });
+  return hits;
+}
+
+function botPick() {                                               // the "smart" part
+  const k = cur();
+  let best = movable[0], bestScore = -1;
+  movable.forEach(t => {
+    const p = tokens[k][t], np = p === 0 ? 1 : p + dice;
+    let s = np * 0.3 + Math.random();
+    if (np === FINISH) s += 100;
+    if (captureAt(k, np).length) s += 80;
+    if (p === 0) s += 50;
+    if (np > 60) s += 40;
+    if (np <= 60 && ringIndex(k, np) % SEG === 0) s += 25;
+    if (s > bestScore) { bestScore = s; best = t; }
+  });
+  return best;
+}
+
+async function moveToken(t) {
+  if (gameOver || dice === null || !movable.includes(t)) return;
+  busy = true; const k = cur(), d = dice; movable = [];
+  if (tokens[k][t] === 0) { tokens[k][t] = 1; beep(520, .12); render(); await sleep(250); }
+  else for (let i = 0; i < d; i++) { tokens[k][t]++; beep(400 + i * 30, .05, "triangle"); render(); await sleep(170); }
+  const p = tokens[k][t];
+  const hits = captureAt(k, p); hits.forEach(([o, i]) => tokens[o][i] = 0);
+  if (hits.length) beep(160, .35, "sawtooth");
+  if (p === FINISH) { beep(880, .15); setTimeout(() => beep(1175, .2), 150); }
+  render();
+  if (tokens[k].every(x => x === FINISH)) return win(k);
+  dice = null; busy = false;
+  if (d === 6 || hits.length) {
+    setStatus((hits.length ? "💥 Captured! " : "🎉 Rolled a 6! ") + NAMES[k] + " rolls again."); render(); afterTurnStart();
+  } else nextTurn();
+}
+
+function nextTurn() {
+  if (gameOver) return;
+  turn = (turn + 1) % seats.length; dice = null; movable = [];
+  setStatus((bots.has(cur()) ? "🤖 " : "") + NAMES[cur()] + "'s turn. Roll the dice!");
+  render(); afterTurnStart();
+}
+
+function win(k) {
+  gameOver = true; busy = false; render();
+  const users = getUsers();                                       // update stats of human players
+  room.players.forEach((p, i) => {
+    if (!p.bot && users[p.user]) { users[p.user].played = (users[p.user].played || 0) + 1; if (i === k) users[p.user].wins = (users[p.user].wins || 0) + 1; }
+  });
+  saveUsers(users);
+  setStatus("🏆 " + NAMES[k] + " wins!");
+  $("winText").textContent = "🏆 " + NAMES[k] + " wins!"; $("winText").style.color = COLORS[k];
+  $("win").style.display = "flex";
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .25, "triangle"), i * 160));
+  for (let i = 0; i < 50; i++) {
+    const c = document.createElement("span"); c.className = "conf";
+    c.textContent = ["🎉","✨","🎊","⭐"][i % 4]; c.style.left = Math.random() * 100 + "%";
+    c.style.animationDuration = 2 + Math.random() * 3 + "s"; $("win").appendChild(c);
+    setTimeout(() => c.remove(), 5500);
+  }
+}
+
+// ---------- drawing ----------
+function render() {
+  let s = `<defs><filter id="sh"><feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-opacity=".6"/></filter>` +
+    COLORS.map((c, k) => `<radialGradient id="g${k}" cx="35%" cy="30%"><stop offset="0%" stop-color="#fff"/><stop offset="45%" stop-color="${c}"/><stop offset="100%" stop-color="${c}" stop-opacity=".75"/></radialGradient>`).join("") + `</defs>`;
+  const W = R + 34;
+  s += `<circle r="${W + 12}" fill="#111827"/>`;
+  for (let k = 0; k < 6; k++) {                                   // colored wedges
+    const a1 = angleOf(k * SEG - 0.5), a2 = angleOf(k * SEG + 9.5), act = seats.includes(k);
+    s += `<path d="M0,0 L${W*Math.cos(a1)},${W*Math.sin(a1)} A${W},${W} 0 0 1 ${W*Math.cos(a2)},${W*Math.sin(a2)} Z" fill="${COLORS[k]}" opacity="${act ? .28 : .08}"/>`;
+  }
+  for (let k = 0; k < 6; k++) {                                   // bases
+    const a = angleOf(k * SEG + 5), r = 0.58 * R, act = seats.includes(k), isTurn = act && k === cur() && !gameOver;
+    s += `<circle cx="${r*Math.cos(a)}" cy="${r*Math.sin(a)}" r="46" fill="#0b1020" stroke="${COLORS[k]}" stroke-width="${isTurn ? 6 : 3}" opacity="${act ? 1 : .3}"/>`;
+    for (let t = 0; t < 4; t++) { const [x, y] = baseXY(k, t); s += `<circle cx="${x}" cy="${y}" r="10" fill="${COLORS[k]}" opacity=".25"/>`; }
+  }
+  for (let i = 0; i < RING; i++) {                                // track
+    const [x, y] = ringXY(i), safe = i % SEG === 0, k = i / SEG;
+    s += `<circle cx="${x}" cy="${y}" r="13" fill="${safe ? COLORS[k] : '#e2e8f0'}" stroke="#0b1020" stroke-width="2"/>`;
+    if (safe) s += `<text x="${x}" y="${y + 5}" font-size="14" text-anchor="middle" fill="#fff">★</text>`;
+  }
+  for (let k = 0; k < 6; k++) for (let c = 0; c < 4; c++) {       // home columns
+    const [x, y] = homeXY(k, c);
+    s += `<circle cx="${x}" cy="${y}" r="12" fill="${COLORS[k]}" opacity=".7" stroke="#0b1020" stroke-width="1.5"/>`;
+  }
+  s += `<circle r="40" fill="#1e1b4b" stroke="gold" stroke-width="3"/><text y="6" font-size="15" font-weight="bold" text-anchor="middle" fill="gold">HOME</text>`;
+  const seen = {};                                                // tokens
+  seats.forEach(k => tokens[k].forEach((p, t) => {
+    let [x, y] = tokenXY(k, t);
+    if (p > 0) { const key = Math.round(x) + "," + Math.round(y); seen[key] = (seen[key] || 0) + 1; x += (seen[key] - 1) * 6; y -= (seen[key] - 1) * 6; }
+    const can = k === cur() && !bots.has(k) && movable.includes(t) && !busy;
+    s += `<circle data-t="${t}" class="${can ? "movable" : ""}" cx="${x}" cy="${y}" r="11" fill="url(#g${k})" stroke="${can ? "#fff" : "#0b1020"}" stroke-width="${can ? 5 : 2}" filter="url(#sh)"/>`;
+  }));
+  $("board").innerHTML = s;
+  $("players").innerHTML = seats.map(k =>
+    `<div class="chip ${k === cur() && !gameOver ? "active" : ""}" style="border-color:${COLORS[k]};color:${COLORS[k]}">` +
+    `<span style="color:#fff">${bots.has(k) ? "🤖" : "👤"} ${NAMES[k]}: ${tokens[k].filter(x => x === FINISH).length}/4 home</span></div>`).join("");
+  $("roll").disabled = busy || gameOver || dice !== null || bots.has(cur());
+}
+
+$("board").addEventListener("click", e => {
+  if (e.target.dataset.t !== undefined && !busy && !bots.has(cur())) moveToken(+e.target.dataset.t);
+});
+$("roll").addEventListener("click", () => { if (!bots.has(cur())) rollDice(); });
+$("newGame").addEventListener("click", newGame);
+$("again").addEventListener("click", newGame);
+$("mute").addEventListener("click", () => { muted = !muted; $("mute").textContent = muted ? "🔇" : "🔊"; });
+newGame();
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create Room - Smart Ludo</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<nav id="nav"></nav>
+<div class="wrap" style="max-width:520px">
+  <h1>🏠 Room</h1>
+  <div class="card" id="setup" style="display:none">
+    <h2>Create a Room</h2>
+    <label>Maximum players</label>
+    <select id="max"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option></select>
+    <button class="btn" id="create">Create Room</button>
+  </div>
+  <div class="card" id="lobby" style="display:none"></div>
+</div>
+<script src="auth.js"></script>
+<script>
+requireLogin(); navbar();
+const code = new URLSearchParams(location.search).get("room");
+let last = "";
+
+if (!code) {
+  $("setup").style.display = "block";
+  $("create").onclick = () => {
+    const rooms = getRooms(), u = getUsers()[me()]; let c;
+    do { c = Math.random().toString(36).slice(2, 7).toUpperCase(); } while (rooms[c]);
+    rooms[c] = { code: c, host: me(), max: +$("max").value, started: false, players: [{ name: u.display, user: me(), bot: false }] };
+    saveRooms(rooms);
+    location.href = "create-room.html?room=" + c;
+  };
+} else {
+  $("lobby").style.display = "block";
+  const rooms = getRooms(), r = rooms[code];
+  if (r && !r.players.some(p => p.user === me()) && !r.started && r.players.length < r.max) {
+    r.players.push({ name: getUsers()[me()].display, user: me(), bot: false });   // join the room
+    saveRooms(rooms);
+  }
+  render();
+  setInterval(render, 1000);
+  window.addEventListener("storage", render);
+}
+
+function update(fn) { const rooms = getRooms(); fn(rooms[code]); saveRooms(rooms); last = ""; render(); }
+
+function render() {
+  const r = getRooms()[code];
+  const sig = JSON.stringify(r); if (sig === last) return; last = sig;
+  if (!r) { $("lobby").innerHTML = '<p class="err">Room not found.</p><a href="home.html">Back to Home</a>'; return; }
+  const inRoom = r.players.some(p => p.user === me());
+  if (r.started && inRoom) { location.href = "game.html?room=" + code; return; }
+  if (!inRoom) { $("lobby").innerHTML = '<p class="err">You are not in this room (it may be full or already started).</p><a href="home.html">Back to Home</a>'; return; }
+
+  const isHost = r.host === me();
+  let h = `<h2>Room Code</h2><div class="code">${esc(r.code)}</div><button class="ghost" id="copy">📋 Copy code</button>` +
+          `<p>Friends can join from <b>Home → Join Room</b> (open this site in another tab).</p><h3>Players (${r.players.length}/${r.max})</h3>`;
+  for (let i = 0; i < r.max; i++) {
+    const p = r.players[i];
+    h += p ? `<div class="slot"><span class="dot" style="background:${PALETTE[i]}"></span><span>${p.bot ? "🤖" : "👤"} ${esc(p.name)}${p.user === r.host ? " (host)" : ""}</span>` +
+             `${isHost && p.bot ? `<button class="ghost" data-rm="${i}">✖</button>` : ""}</div>`
+           : `<div class="slot empty"><span class="dot" style="background:${PALETTE[i]};opacity:.4"></span><span>Waiting for player...</span></div>`;
+  }
+  h += isHost
+    ? `<button class="ghost" id="addbot" ${r.players.length >= r.max ? "disabled" : ""}>➕ Add Computer</button> <button class="btn" id="start">▶ Start Game</button>`
+    : `<p>Waiting for the host to start the game...</p><button class="ghost" id="leave">Leave room</button>`;
+  $("lobby").innerHTML = h + '<div id="msg" class="msg"></div>';
+}
+
+$("lobby").addEventListener("click", e => {
+  const t = e.target;
+  if (t.id === "copy") { navigator.clipboard && navigator.clipboard.writeText(code); t.textContent = "✅ Copied!"; }
+  if (t.dataset.rm !== undefined) update(r => r.players.splice(+t.dataset.rm, 1));
+  if (t.id === "addbot") update(r => {
+    if (r.players.length < r.max) r.players.push({ name: "Computer " + (r.players.filter(p => p.bot).length + 1), bot: true });
+  });
+  if (t.id === "leave") { update(r => r.players = r.players.filter(p => p.user !== me())); location.href = "home.html"; }
+  if (t.id === "start") {
+    const r = getRooms()[code];
+    if (r.players.length < 2) return say("msg", "You need at least 2 players. Add a computer!", false);
+    update(x => x.started = true);
+  }
+});
+</script>
+</body></html>

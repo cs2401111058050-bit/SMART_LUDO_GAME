@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home - Smart Ludo</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<nav id="nav"></nav>
+<div class="wrap">
+  <h1>🎲 SMART LUDO</h1>
+  <div class="card"><h2 id="hello"></h2>
+    <div class="grid">
+      <div><div class="big" id="wins">0</div>Wins</div>
+      <div><div class="big" id="played">0</div>Games played</div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>🏠 Create Room</h2><p>Host a game for up to 6 players. You get a room code to share.</p>
+      <a href="create-room.html"><button class="btn">Create Room</button></a></div>
+    <div class="card"><h2>🔑 Join Room</h2>
+      <input id="code" placeholder="Enter room code" maxlength="5" style="text-transform:uppercase;text-align:center">
+      <button class="btn" id="join">Join Room</button><div id="msg" class="msg"></div></div>
+  </div>
+</div>
+<script src="auth.js"></script>
+<script>
+requireLogin(); navbar();
+const u = getUsers()[me()];
+$("hello").textContent = "Welcome, " + u.display + "!";
+$("wins").textContent = u.wins || 0; $("played").textContent = u.played || 0;
+
+$("join").onclick = () => {
+  const c = $("code").value.trim().toUpperCase(), r = getRooms()[c];
+  if (!r) return say("msg", "Room not found. Check the code.", false);
+  const mine = r.players.some(p => p.user === me());
+  if (r.started) return mine ? (location.href = "game.html?room=" + c) : say("msg", "That game has already started.", false);
+  if (!mine && r.players.length >= r.max) return say("msg", "That room is full.", false);
+  location.href = "create-room.html?room=" + c;
+};
+</script>
+</body></html>
